@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>jQuery Parallel Ajax Example</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Varela+Round" rel="stylesheet"> 
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+
+    <style>
+      body {
+        font-family: 'Varela Round', 'Segoe UI', 'Trebuchet MS', sans-serif;
+      }
+
+      .ajaxLoader { 
+        display: none; 
+      }
+
+      textarea.form-control, textarea.form-control:focus  {
+        background-color: #333;
+        border: 1px solid #444;
+        color: #00ff00;
+        padding: 8px;
+        font-family: courier new;
+        font-size: 10pt;
+      }
+
+      .footer { 
+        font-size: 80%; 
+      }
+
+      .footer hr {
+        margin-bottom: 0; 
+        }
+
+    </style>
+  </head>
+  <body>
+
+    <div class="container" style="margin-top:30px">
+
+      <div>
+        <h3>jQuery Parallel Ajax Example</h3>
+        <hr>
+      </div>
+      
+      <div class="row">
+        <div class="col-sm-8">
+          <form id="params">
+            <div class="input-group mb-3">
+              <div class="input-group-prepend">
+                  <div class="input-group-text" data-toggle="tooltip" title="Check this to randomize the delay for each request.">
+                      <input id="random" type="checkbox" checked="checked" value="1">&nbsp;Random delay
+                    </div>
+                <span class="input-group-text">Max. delay</span>
+              </div>
+              <input id="delay" type="text" class="form-control" value="10"data-toggle="tooltip" title="Type in number of seconds a request shall be delayed. If you checked to randomize the delay each request will have a random delay up to the seconds you enterd here."">
+              <div class="input-group-prepend">
+                  <span class="input-group-text">Number of requests</span>
+                </div>
+                <input id="count" type="text" class="form-control" value="4"data-toggle="tooltip" title="Number of requests to run in total"">
+                <div class="input-group-append">
+                <button class="btn btn-success" type="submit">Go</button> 
+              </div>
+            </div>  
+          </form>
+
+          <div class="form-group">
+              <label for="exampleFormControlTextarea6">
+                Output
+                <img class="ajaxLoader" src="ajax-loader.gif">
+              </label>
+              <textarea id="output" class="form-control" rows="15"></textarea>
+          </div>
+        </div>
+
+        <div class="col-sm-4" >
+              <p>
+                In this example i will show how to minimize overall loading time by running 
+                multiple <strong>$.ajax()</strong> calls in parallel and not one by one after each other.
+              </p>
+              <p>
+                The point here is that the number of ajax calls is not known in advance and variable. 
+              </p>
+              <p>
+                  Type in the number of requests you want to run.
+                </p>
+                <p>
+                Press the <strong class="text-success">Go!</strong> button on the left to run the code example.
+              </p>
+        </div>
+      </div>
+
+      <div id="alerts"></div>
+      
+      <div class="footer">
+          <hr>
+          <p>Copyright &copy; 2018 <a href="http://github.com/andishfr/">Andreas Schaefer</a></p>
+      </div>
+
+    </div>
+
+  <!-- Script tags are placed at the end of the file to make html appear faster -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+      
+  <script>
+  $(function () {
+
+    function bsAlert(s) {
+      if(!s) {
+        $('#alerts').empty(); return; 
+      }
+
+      $('#alerts').append([
+        '<div class="alert alert-danger alert-dismissible fade show">',
+        '<button type="button" class="close" data-dismiss="alert">&times;</button>',
+        '<strong>Error:</strong>&nbsp;',
+        s,
+        '</div>'
+      ].join(''));
+    }
+
+    function print(s) {
+      var
+        padZero = function(n) { return (n < 10 ? '0' : '' ) + n; },
+        $output = $('#output'),
+        now = new Date(),
+        timestamp = [
+          padZero(now.getHours()), ':',
+          padZero(now.getMinutes()), ':',
+          padZero(now.getSeconds()), ' : ',
+        ].join('')
+        ;
+      $output.val( $output.val() + timestamp + s + '\n' );
+    }
+
+    $('#params').on('submit', function(event) {
+      event.preventDefault();
+      if($('#params :input').hasClass('disabled')) return false;
+
+      $('#params :input').addClass('disabled');
+
+      bsAlert();
+      $('#output').val('');
+
+      var
+        random = $('#random:checked').length > 0,
+        delay = Math.max(1, parseInt($('#delay').val())),
+        count = Math.max(1, parseInt($('#count').val())),
+        makeAjax = function(id, delay) {
+          return $.ajax({ 
+            url: 'ajax-dummy.php',                 
+            data: { i: id, d: delay },
+            error: function(jqXHR, textStatus, errorThrown) { 
+              bsAlert('Request #' + i + ' : ' + textStatus + ' - ' + errorThrown); 
+              count--;              
+              if(0==count) $('.ajaxLoader').hide(); 
+            }
+          });
+        },
+        // Array to hold all the request $.ajax() objects
+        allRequests = []
+        ;
+
+        // Here we create $.ajax() objects in a loop with parameters
+        // Usually you would add your $.ajax() objects to the aray in a 
+        // similar fashion
+        for(var i=0; i < count; i++) {
+          allRequests.push(
+            makeAjax(
+              '#' + (i + 1), 
+              (random ? 1 + Math.random() * (delay - 1) : delay) 
+              )
+            );
+        }
+        
+        print('Starting ' + count + ' requests with ' + (random?'random':'fixed') + ' delay...');
+        $('.ajaxLoader').show(); 
+        var startMillis = window.performance.now(); 
+
+        // Now call $.when() in a way so we can pass the array contaiing the ajax() requests
+        $.when.apply($, allRequests)
+        // When all requests are resolved/finished then the done() function will be called.
+        .done(function() {
+          var 
+            duration = (window.performance.now() - startMillis) / 1000,
+            args = [].slice.call(arguments),
+            total = 0.0
+            ;
+
+          args.forEach(function(result){
+            var data = result[0];
+            total += parseFloat(data.elapsed);
+            print('' + data.ident + ' : Start=' + data.started + ', End=' + data.finished + ', Delay=' + data.delay );
+          }); 
+
+          print('Finished with ' + args.length + ' results.');
+          print('Actual query runtime: ' + duration.toFixed(2) + ' seconds.');
+          print('Overall query runtime time: ' + total.toFixed(2) + ' seconds.');
+
+          $('#params :input').removeClass('disabled');
+          $('.ajaxLoader').hide(); 
+        })
+        ;
+
+      return false;
+    });
+
+    // Enable bootstrap tooltips
+    $('[data-toggle="tooltip"]').tooltip(); 
+
+  });
+  </script>
+
+  </body>
+</html>
